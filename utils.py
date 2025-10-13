@@ -7,29 +7,6 @@ from fipsvars import big_cwast, med_cwast, small_cwast, find_dist
 
 from pdb import set_trace as st
 
-with open('../../ml-data/trained-models/wfo-label-encoder.model','rb') as f:
-    wfo_label_encoder = pickle.load(f)
-
-with open('../../ml-data/trained-models/det/hgb-det_wind-simple.model','rb') as f:
-    wind_model = pickle.load(f)
-
-with open('../../ml-data/trained-models/det/hgb-det_hail-simple.model','rb') as f:
-    hail_model = pickle.load(f)
-
-with open('../../ml-data/trained-models/det/hgb-det_sigwind-nopopfeat-withwindcount.model','rb') as f:
-    sigwind_model = pickle.load(f)
-
-with open('../../ml-data/trained-models/det/hgb-det_sighail-nopopfeat-withhailcount.model','rb') as f:
-    sighail_model = pickle.load(f)
-
-
-models = {
-    'le': wfo_label_encoder,
-    'wind': wind_model,
-    'hail': hail_model,
-    'sigwind': sigwind_model,
-    'sighail': sighail_model
-}
 
 col_names_outlook = [
     'otlk_timestamp','wfo_st_list',

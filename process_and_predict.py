@@ -2,8 +2,8 @@ import glob
 import argparse
 import pathlib
 import pygrib
-import json
 import pygridder as pg
+import pickle
 
 import numpy as np
 from scipy import stats
@@ -14,13 +14,11 @@ import pyproj
 import datetime as dt
 import glob
 
-import math
 import warnings
 warnings.filterwarnings('ignore')
 
-from fipsvars import fipsToState, cig_dists, mags, levs
-from utils import col_names_outlook, col_names_wind, col_names_hail, col_names_href, models
-from utils import gather_features, gather_ct_features, fix_neg, add_distribution_empirical_corr, flatten_list, return_proportion
+import utils as u
+import fipsvars as fv
 from make_plots import make_plots
 from pdb import set_trace as st
 
@@ -29,6 +27,8 @@ parser.add_argument("-o", "--otlkfile", required=True)
 parser.add_argument("-c", "--confile", required=True)
 parser.add_argument("-hp", "--hrefpath", required=True)
 parser.add_argument("-out", "--outpath", required=False, default='../web/images/')
+parser.add_argument("-ml", "--mlpath", required=False, default='../../ml-data/trained-models/')
+parser.add_argument("-d", "--datapath", required=False, default='../data/')
 
 args = parser.parse_args()
 
@@ -36,9 +36,40 @@ args = parser.parse_args()
 ndfd_file = pathlib.Path(args.otlkfile)
 con_file = pathlib.Path(args.confile)
 href_path = pathlib.Path(args.hrefpath)
+ml_path = pathlib.Path(args.mlpath)
+data_path = pathlib.Path(args.datapath)
 out_path = pathlib.Path(args.outpath)
 
-# otlkdt = dt.datetime.strptime(ndfd_file.as_posix().split('_')[-1][:-2],'%Y%m%d%H%M')
+# Data files
+impacts_grids_file = f'{data_path}/impact-grids-5km.npz'
+cwa_file = f'{data_path}/cwas.npz'
+corr_file = f'{data_path}/correlation-matrices.npz'
+
+# ML models
+with open(f'{ml_path.as_posix()}/wfo-label-encoder.model','rb') as f:
+    wfo_label_encoder = pickle.load(f)
+
+with open(f'{ml_path.as_posix()}/det/hgb-det_wind-simple.model','rb') as f:
+    wind_model = pickle.load(f)
+
+with open(f'{ml_path.as_posix()}/det/hgb-det_hail-simple.model','rb') as f:
+    hail_model = pickle.load(f)
+
+with open(f'{ml_path.as_posix()}/det/hgb-det_sigwind-nopopfeat-withwindcount.model','rb') as f:
+    sigwind_model = pickle.load(f)
+
+with open(f'{ml_path.as_posix()}/det/hgb-det_sighail-nopopfeat-withhailcount.model','rb') as f:
+    sighail_model = pickle.load(f)
+
+
+models = {
+    'le': wfo_label_encoder,
+    'wind': wind_model,
+    'hail': hail_model,
+    'sigwind': sigwind_model,
+    'sighail': sighail_model
+}
+
 otlk_ts = ndfd_file.as_posix().split('_')[-1]
 year = int(otlk_ts[:4])
 month = int(otlk_ts[4:6])
@@ -49,10 +80,6 @@ otlkdt = dt.datetime(year, month, day, valid_hr)
 outdir = pathlib.Path(out_path,'dates',otlk_ts).resolve()
 outdir.mkdir(exist_ok=True)
 
-
-impacts_grids_file = '../data/impact-grids-5km.npz'
-cwa_file = '../data/cwas.npz'
-corr_file = '../data/correlation-matrices.npz'
 
 with np.load(impacts_grids_file) as NPZ:
     population = NPZ["population"]
@@ -70,7 +97,7 @@ with np.load(impacts_grids_file) as NPZ:
 with np.load(cwa_file) as NPZ:
     wfo = NPZ['cwas']
 
-map_func = np.vectorize(lambda x: fipsToState.get(x, '0'))
+map_func = np.vectorize(lambda x: fv.fipsToState.get(x, '0'))
 wfo_state_2d = np.char.add(wfo.astype('str'),map_func(state))
 
 with np.load(corr_file,allow_pickle=True) as NPZ:
@@ -150,11 +177,11 @@ wfo_st_alloutlook = np.concatenate([wfo_st_windoutlook,wfo_st_hailoutlook,wfo_st
 wfo_st_unique = np.unique(wfo_st_alloutlook[[ '0' not in s for s in wfo_st_alloutlook]])
 
 # Outlook based features
-df_otlk = gather_features(wfo_st_unique, wfo_state_2d, otlkdt, 
+df_otlk = u.gather_features(wfo_st_unique, wfo_state_2d, otlkdt, 
                     wind_cov, hail_cov, torn_cov, 
                     wind_con, hail_con, torn_con, 
                     population)
-df_otlk.columns = col_names_outlook  # Rename columns to assist merge with HREF features
+df_otlk.columns = u.col_names_outlook  # Rename columns to assist merge with HREF features
 df_otlk['doy'] = get_doy(df_otlk)
 
 # HREF feature processing
@@ -201,8 +228,8 @@ for idx in idx_href:
 
 ct_vals = np.array(ct_vals)
 
-df_href = gather_ct_features(wfo_st_unique, wfo_st_1d, otlkdt, ct_vals, population, wfo_state_2d)
-df_href.columns = col_names_href # Rename columns to assist merge with outlook features
+df_href = u.gather_ct_features(wfo_st_unique, wfo_st_1d, otlkdt, ct_vals, population, wfo_state_2d)
+df_href.columns = u.col_names_href # Rename columns to assist merge with outlook features
 
 df_all = df_otlk.merge(df_href, on=['otlk_timestamp','wfo_st_list'], how='inner').fillna(0)
 
@@ -210,14 +237,14 @@ wfo_list_trans = models['le'].transform(df_all.wfo_st_list.str.slice(0,3))
 X = df_all.iloc[:,2:]
 X['wfo'] = wfo_list_trans
 # Xsig = X[X.columns.drop(list(X.filter(regex='pop')))]
-Xwind = X[col_names_wind]
-Xhail = X[col_names_hail]
+Xwind = X[u.col_names_wind]
+Xhail = X[u.col_names_hail]
 
 wind_preds = np.round(models['wind'].predict(Xwind))
-wind_preds = fix_neg(wind_preds)
+wind_preds = u.fix_neg(wind_preds)
 
 hail_preds = np.round(models['hail'].predict(Xhail))
-hail_preds = fix_neg(hail_preds)
+hail_preds = u.fix_neg(hail_preds)
 
 # sigwind_preds = np.round(models['sigwind'].predict(Xsig))
 # sigwind_preds = fix_neg(sigwind_preds)
@@ -233,7 +260,7 @@ df_preds = pd.DataFrame({
     # 'sighail': sighail_preds,
 })
 
-big_preds, med_preds, small_preds = add_distribution_empirical_corr(df_preds,corr_dict,area_order)
+big_preds, med_preds, small_preds = u.add_distribution_empirical_corr(df_preds,corr_dict,area_order)
 
 # big_preds, med_preds, small_preds = add_distribution(df_preds)
 
@@ -263,28 +290,28 @@ def add_sig_counts(df_preds):
         
             all_ratings = []
         
-            for con_lvl in levs:
+            for con_lvl in fv.levs:
                 con_inds = con_reports == con_lvl
 
                 if con_lvl == 0:
 
                     mo = int(otlk_ts[4:6])
                     loc = row.wfost[:3]
-                    sig_wind_pct = return_proportion(mo,loc,'wind')
+                    sig_wind_pct = u.return_proportion(mo,loc,'wind')
 
                     all_ratings.append(
-                        np.random.choice(mags, size=con_inds.sum(), 
+                        np.random.choice(fv.mags, size=con_inds.sum(), 
                                          replace=True, p=[1-sig_wind_pct,sig_wind_pct])
                     )
 
                 else:
             
                     all_ratings.append(
-                        np.random.choice(mags, size=con_inds.sum(),
-                                            replace=True, p=cig_dists['wind'][str(con_lvl)])
+                        np.random.choice(fv.mags, size=con_inds.sum(),
+                                            replace=True, p=fv.cig_dists['wind'][str(con_lvl)])
                     )
         
-            all_ratings_flat = flatten_list(all_ratings)
+            all_ratings_flat = u.flatten_list(all_ratings)
             np.random.shuffle(all_ratings_flat)
             _sims = np.split(all_ratings_flat, row.wind_dists.astype(int).cumsum())[:-1]
             sigwind_dists = [arr.sum() for arr in _sims]
@@ -311,27 +338,27 @@ def add_sig_counts(df_preds):
         
             all_ratings = []
         
-            for con_lvl in levs:
+            for con_lvl in fv.levs:
                 con_inds = con_reports == con_lvl
 
                 if con_lvl == 0:
 
                     mo = int(otlk_ts[4:6])
                     loc = row.wfost[:3]
-                    sig_hail_pct = return_proportion(mo,loc,'hail')
+                    sig_hail_pct = u.return_proportion(mo,loc,'hail')
 
                     all_ratings.append(
-                        np.random.choice(mags, size=con_inds.sum(), 
+                        np.random.choice(fv.mags, size=con_inds.sum(), 
                                          replace=True, p=[1-sig_hail_pct,sig_hail_pct])
                     )
                 else:
             
                     all_ratings.append(
-                        np.random.choice(mags, size=con_inds.sum(),
-                                            replace=True, p=cig_dists['hail'][str(con_lvl)])
+                        np.random.choice(fv.mags, size=con_inds.sum(),
+                                            replace=True, p=fv.cig_dists['hail'][str(con_lvl)])
                     )
         
-            all_ratings_flat = flatten_list(all_ratings)
+            all_ratings_flat = u.flatten_list(all_ratings)
             np.random.shuffle(all_ratings_flat)
             _sims = np.split(all_ratings_flat, row.hail_dists.astype(int).cumsum())[:-1]
             sighail_dists = [arr.sum() for arr in _sims]
