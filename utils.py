@@ -2,60 +2,10 @@ import pandas as pd
 import numpy as np
 from scipy.stats import multivariate_normal, norm
 import math
-import pickle
 from fipsvars import big_cwast, med_cwast, small_cwast, find_dist
 
 from pdb import set_trace as st
 
-
-col_names_outlook = [
-    'otlk_timestamp','wfo_st_list',
-        'toy_sin','toy_cos','maxhaz','medhaz','minhaz','popwfo','maxtor','medtor','mintor',
-        'areator', 'area2tor', 'area5tor', 'area10tor', 'area15tor', 'area30tor', 'area45tor', 'area60tor',
-        'areacigtor', 'areacig0tor', 'areacig1tor', 'areacig2tor',
-        'poptor', 'pop2tor', 'pop5tor', 'pop10tor', 'pop15tor', 'pop30tor', 'pop45tor', 'pop60tor',
-        'popcig0tor', 'popcig1tor', 'popcig2tor',
-        'poptordensity',
-        'maxhail','medhail','minhail',
-        'areahail', 'area5hail', 'area15hail', 'area30hail', 'area45hail', 'area60hail',
-        'areacighail', 'areacig0hail', 'areacig1hail', 'areacig2hail',
-        'pophail', 'pop5hail', 'pop15hail', 'pop30hail', 'pop45hail', 'pop60hail',
-        'popcig0hail', 'popcig1hail', 'popcig2hail',
-        'pophaildensity',
-        'maxwind','medwind','minwind',
-        'areawind', 'area5wind', 'area15wind', 'area30wind', 'area45wind', 'area60wind',
-        'areacigwind', 'areacig0wind', 'areacig1wind', 'areacig2wind',
-        'popwind', 'pop5wind', 'pop15wind', 'pop30wind', 'pop45wind', 'pop60wind',
-        'popcig0wind', 'popcig1wind', 'popcig2wind',
-        'popwinddensity'
-]
-
-col_names_wind = ['maxwind', 'medwind', 'minwind', 'areawind', 'area5wind', 'area15wind',
-       'area30wind', 'area45wind', 'area60wind', 'areacigwind', 'areacig0wind',
-       'areacig1wind', 'areacig2wind', 'popwind', 'pop5wind', 'pop15wind',
-       'pop30wind', 'pop45wind', 'pop60wind', 'popcig0wind', 'popcig1wind',
-       'popcig2wind', 'popwinddensity', 'wfo', 'doy', 'maxct', 'medct',
-       'maxhourct', 'medhourct', 'hourofmax_sin', 'hourofmax_cos', 'sumct',
-       'sumhourct', 'sumpopct', 'sumhourpopct', 'maxpopct', 'medpopct',
-       'maxhourpopct', 'medhourpopct']
-
-col_names_hail = ['maxhail', 'medhail', 'minhail', 'areahail', 'area5hail', 'area15hail',
-       'area30hail', 'area45hail', 'area60hail', 'areacighail', 'areacig0hail',
-       'areacig1hail', 'areacig2hail', 'pophail', 'pop5hail', 'pop15hail',
-       'pop30hail', 'pop45hail', 'pop60hail', 'popcig0hail', 'popcig1hail',
-       'popcig2hail', 'pophaildensity', 'wfo', 'doy', 'maxct', 'medct',
-       'maxhourct', 'medhourct', 'hourofmax_sin', 'hourofmax_cos', 'sumct',
-       'sumhourct', 'sumpopct', 'sumhourpopct', 'maxpopct', 'medpopct',
-       'maxhourpopct', 'medhourpopct']
-
-col_names_href = [
-        'otlk_timestamp','wfo_st_list',
-        'maxct','medct',
-        'maxhourct','medhourct',
-        'hourofmax_sin','hourofmax_cos',
-        'sumct','sumhourct','sumpopct','sumhourpopct',
-        'maxpopct','medpopct','maxhourpopct','medhourpopct'
-]
 
 def fix_neg(arr):
     """ Fix negative values in an array by replacing them with 0"""

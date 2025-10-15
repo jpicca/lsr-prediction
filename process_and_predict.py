@@ -55,19 +55,11 @@ with open(f'{ml_path.as_posix()}/det/hgb-det_wind-simple.model','rb') as f:
 with open(f'{ml_path.as_posix()}/det/hgb-det_hail-simple.model','rb') as f:
     hail_model = pickle.load(f)
 
-with open(f'{ml_path.as_posix()}/det/hgb-det_sigwind-nopopfeat-withwindcount.model','rb') as f:
-    sigwind_model = pickle.load(f)
-
-with open(f'{ml_path.as_posix()}/det/hgb-det_sighail-nopopfeat-withhailcount.model','rb') as f:
-    sighail_model = pickle.load(f)
-
 
 models = {
     'le': wfo_label_encoder,
     'wind': wind_model,
-    'hail': hail_model,
-    'sigwind': sigwind_model,
-    'sighail': sighail_model
+    'hail': hail_model
 }
 
 otlk_ts = ndfd_file.as_posix().split('_')[-1]
@@ -108,8 +100,7 @@ with np.load(corr_file,allow_pickle=True) as NPZ:
     area_order = NPZ['area_order']
 
 
-# Outlook feature processing
-
+### Outlook feature processing
 # Read grib file
 def read_ndfd_grib_file(grbfile,which='torn'):
     """ Read an SPC Outlook NDFD Grib2 File """
@@ -143,6 +134,7 @@ def read_con_npz_file(npzfile,which='torn'):
 
     return vals
 
+# Needed to convert toy_sin and toy_cos back to day of year
 def get_doy(X):
     angle = np.arctan2(X.toy_sin[0],X.toy_cos[0])
 
@@ -154,16 +146,21 @@ def get_doy(X):
 
     return day_of_year
 
-# read coverage and continuous files
+# read coverage files
 torn_cov = read_ndfd_grib_file(ndfd_file, which='torn')
 hail_cov = read_ndfd_grib_file(ndfd_file, which='hail')
 wind_cov = read_ndfd_grib_file(ndfd_file, which='wind')
 
 # Check if coverage files have probs > 0
 if hail_cov.max() == 0 and wind_cov.max() == 0:
-    import sys
-    sys.exit(2)
 
+    print(f'All hail/wind coverage probabilities less than 5%. No predictions made for {otlk_ts}.')
+
+    # Exit script
+    import sys
+    sys.exit(0)
+
+# read cig files
 torn_con = read_con_npz_file(con_file, which='torn')
 hail_con = read_con_npz_file(con_file, which='hail')
 wind_con = read_con_npz_file(con_file, which='wind')
@@ -181,7 +178,7 @@ df_otlk = u.gather_features(wfo_st_unique, wfo_state_2d, otlkdt,
                     wind_cov, hail_cov, torn_cov, 
                     wind_con, hail_con, torn_con, 
                     population)
-df_otlk.columns = u.col_names_outlook  # Rename columns to assist merge with HREF features
+df_otlk.columns = fv.col_names_outlook  # Rename columns to assist merge with HREF features
 df_otlk['doy'] = get_doy(df_otlk)
 
 # HREF feature processing
@@ -193,7 +190,7 @@ ct_arrs = []
 if len(ct_files) != 48:
     import sys
     print("Some HREF files missing, exiting...")
-    sys.exit(1)
+    sys.exit(0)
 
 for i,file in enumerate(ct_files[otlkdt.hour-1:35]):
 
@@ -229,16 +226,15 @@ for idx in idx_href:
 ct_vals = np.array(ct_vals)
 
 df_href = u.gather_ct_features(wfo_st_unique, wfo_st_1d, otlkdt, ct_vals, population, wfo_state_2d)
-df_href.columns = u.col_names_href # Rename columns to assist merge with outlook features
+df_href.columns = fv.col_names_href # Rename columns to assist merge with outlook features
 
 df_all = df_otlk.merge(df_href, on=['otlk_timestamp','wfo_st_list'], how='inner').fillna(0)
 
 wfo_list_trans = models['le'].transform(df_all.wfo_st_list.str.slice(0,3))
 X = df_all.iloc[:,2:]
 X['wfo'] = wfo_list_trans
-# Xsig = X[X.columns.drop(list(X.filter(regex='pop')))]
-Xwind = X[u.col_names_wind]
-Xhail = X[u.col_names_hail]
+Xwind = X[fv.col_names_wind]
+Xhail = X[fv.col_names_hail]
 
 wind_preds = np.round(models['wind'].predict(Xwind))
 wind_preds = u.fix_neg(wind_preds)
@@ -246,30 +242,20 @@ wind_preds = u.fix_neg(wind_preds)
 hail_preds = np.round(models['hail'].predict(Xhail))
 hail_preds = u.fix_neg(hail_preds)
 
-# sigwind_preds = np.round(models['sigwind'].predict(Xsig))
-# sigwind_preds = fix_neg(sigwind_preds)
-
-# sighail_preds = np.round(models['sighail'].predict(Xsig))
-# sighail_preds = fix_neg(sighail_preds)
-
 df_preds = pd.DataFrame({
     'wfost': df_all.wfo_st_list,
     'wind': wind_preds,
     'hail': hail_preds,
-    # 'sigwind': sigwind_preds,
-    # 'sighail': sighail_preds,
 })
 
 big_preds, med_preds, small_preds = u.add_distribution_empirical_corr(df_preds,corr_dict,area_order)
-
-# big_preds, med_preds, small_preds = add_distribution(df_preds)
 
 def add_sig_counts(df_preds):
 
     final_sigwind_counts = []
     final_sighail_counts = []
     
-    for idx,row in df_preds.iterrows():
+    for _,row in df_preds.iterrows():
         # wind
         cov_probs = wind_cov[wfo_state_2d == row.wfost]
         con_probs = wind_con[wfo_state_2d == row.wfost]
@@ -387,4 +373,4 @@ all_preds['sighail_dists'] = all_preds.sighail_dists * hail_bool
 all_preds['wind_dists'] = all_preds.wind_dists * wind_bool
 all_preds['sigwind_dists'] = all_preds.sigwind_dists * wind_bool
 
-make_plots(all_preds,otlk_ts,outdir)
+make_plots(all_preds,otlk_ts,outdir,only_nat=True)

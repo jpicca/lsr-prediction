@@ -62,7 +62,7 @@ fipsToState = {
     56:"WY"
 }
 
-col_names = [
+col_names_outlook = [
     'otlk_timestamp','wfo_st_list',
         'toy_sin','toy_cos','maxhaz','medhaz','minhaz','popwfo','maxtor','medtor','mintor',
         'areator', 'area2tor', 'area5tor', 'area10tor', 'area15tor', 'area30tor', 'area45tor', 'area60tor',
@@ -81,11 +81,7 @@ col_names = [
         'areacigwind', 'areacig0wind', 'areacig1wind', 'areacig2wind',
         'popwind', 'pop5wind', 'pop15wind', 'pop30wind', 'pop45wind', 'pop60wind',
         'popcig0wind', 'popcig1wind', 'popcig2wind',
-        'popwinddensity','maxct','medct',
-        'maxhourct','medhourct',
-        'hourofmax_sin','hourofmax_cos',
-        'sumct','sumhourct','sumpopct','sumhourpopct',
-        'maxpopct','medpopct','maxhourpopct','medhourpopct'
+        'popwinddensity'
 ]
 
 col_names_wind = ['maxwind', 'medwind', 'minwind', 'areawind', 'area5wind', 'area15wind',
@@ -96,6 +92,24 @@ col_names_wind = ['maxwind', 'medwind', 'minwind', 'areawind', 'area5wind', 'are
        'maxhourct', 'medhourct', 'hourofmax_sin', 'hourofmax_cos', 'sumct',
        'sumhourct', 'sumpopct', 'sumhourpopct', 'maxpopct', 'medpopct',
        'maxhourpopct', 'medhourpopct']
+
+col_names_hail = ['maxhail', 'medhail', 'minhail', 'areahail', 'area5hail', 'area15hail',
+       'area30hail', 'area45hail', 'area60hail', 'areacighail', 'areacig0hail',
+       'areacig1hail', 'areacig2hail', 'pophail', 'pop5hail', 'pop15hail',
+       'pop30hail', 'pop45hail', 'pop60hail', 'popcig0hail', 'popcig1hail',
+       'popcig2hail', 'pophaildensity', 'wfo', 'doy', 'maxct', 'medct',
+       'maxhourct', 'medhourct', 'hourofmax_sin', 'hourofmax_cos', 'sumct',
+       'sumhourct', 'sumpopct', 'sumhourpopct', 'maxpopct', 'medpopct',
+       'maxhourpopct', 'medhourpopct']
+
+col_names_href = [
+        'otlk_timestamp','wfo_st_list',
+        'maxct','medct',
+        'maxhourct','medhourct',
+        'hourofmax_sin','hourofmax_cos',
+        'sumct','sumhourct','sumpopct','sumhourpopct',
+        'maxpopct','medpopct','maxhourpopct','medhourpopct'
+]
 
 # 0 non-sig, 1 sig
 mags = [0,1]

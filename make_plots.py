@@ -12,7 +12,7 @@ import numpy as np
 
 from pdb import set_trace as st
 
-def make_plots(all_preds,otlk_ts,outdir):
+def make_plots(all_preds,otlk_ts,outdir,only_nat=False):
     """
     Function to create plots based on the provided DataFrame.
     Parameters:
@@ -29,20 +29,21 @@ def make_plots(all_preds,otlk_ts,outdir):
     affected_wfos = np.unique(all_preds.wfost.str.slice(0,3))
     affected_states = np.unique(all_preds.wfost.str.slice(3,5))
 
+    if not only_nat:
 
-    # For later (when we start to break down by WFOs and States)
-    # Plot WFOs
-    for affected in affected_wfos:
-        affected_df = all_preds[all_preds.wfost.str.slice(0,3) == affected]
+        # For later (when we start to break down by WFOs and States)
+        # Plot WFOs
+        for affected in affected_wfos:
+            affected_df = all_preds[all_preds.wfost.str.slice(0,3) == affected]
 
-        # affected_summed = affected_df.sum()
-        make_images(affected, affected_df, otlk_ts, outdir, 'wfo')
+            # affected_summed = affected_df.sum()
+            make_images(affected, affected_df, otlk_ts, outdir, 'wfo')
 
-    # # Plot States
-    for affected in affected_states:
-        affected_df = all_preds[all_preds.wfost.str.slice(3,5) == affected]
-        # affected_summed = affected_df.sum()
-        make_images(affected, affected_df, otlk_ts, outdir, 'state')
+        # # Plot States
+        for affected in affected_states:
+            affected_df = all_preds[all_preds.wfost.str.slice(3,5) == affected]
+            # affected_summed = affected_df.sum()
+            make_images(affected, affected_df, otlk_ts, outdir, 'state')
 
     # Plot National
     affected = 'National'
