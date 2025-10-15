@@ -29,6 +29,7 @@ parser.add_argument("-hp", "--hrefpath", required=True)
 parser.add_argument("-out", "--outpath", required=False, default='../web/images/')
 parser.add_argument("-ml", "--mlpath", required=False, default='../../ml-data/trained-models/')
 parser.add_argument("-d", "--datapath", required=False, default='../data/')
+parser.add_argument("-t", "--test", default=1, type=int, required=False)
 
 args = parser.parse_args()
 
@@ -39,6 +40,8 @@ href_path = pathlib.Path(args.hrefpath)
 ml_path = pathlib.Path(args.mlpath)
 data_path = pathlib.Path(args.datapath)
 out_path = pathlib.Path(args.outpath)
+
+isTest = bool(args.test)
 
 # Data files
 impacts_grids_file = f'{data_path}/impact-grids-5km.npz'
@@ -182,7 +185,12 @@ df_otlk.columns = fv.col_names_outlook  # Rename columns to assist merge with HR
 df_otlk['doy'] = get_doy(df_otlk)
 
 # HREF feature processing
-ct_files = glob.glob(f'{href_path.as_posix()}/{otlkdt.year}{otlkdt.month:02d}{otlkdt.day:02d}/spc_post.t00z.hrefct.1hr.f*')
+if isTest:
+    href_path = pathlib.Path('../inference-script-data/href-calthunder/')
+    ct_files = glob.glob(f'{href_path.as_posix()}/{otlkdt.year}{otlkdt.month:02d}{otlkdt.day:02d}/spc_post.t00z.hrefct.1hr.f*')
+else:
+    ct_files = glob.glob(f'/nfsops/ops_users/nadata2/awips2/grib2/spcpost/{otlkdt.year}{otlkdt.month:02d}{otlkdt.day:02d}/thunder/spc_post.t00z.hrefct.1hr.f*')
+
 ct_files.sort()
 
 ct_arrs = []
